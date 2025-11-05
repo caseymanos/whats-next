@@ -46,10 +46,12 @@ struct DeadlinesView: View {
             }
         }
         .refreshable {
-            await viewModel.loadAllInsights()
+            // Refresh triggers new analysis
+            await viewModel.analyzeSelectedForDeadlines()
         }
         .task {
-            await viewModel.loadAllInsights()
+            // Analyze for deadlines (this also loads from database)
+            await viewModel.analyzeSelectedForDeadlines()
         }
     }
 

@@ -1,3 +1,4 @@
+#if DEBUG
 import SwiftUI
 import Network
 
@@ -195,14 +196,20 @@ struct DebugView: View {
                 localStorageSize = ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
             }
         } catch {
-            print("Failed to update storage stats: \(error)")
+            // Error updating stats - show placeholder
+            localStorageSize = "Unavailable"
         }
     }
 
     private func clearCache() {
-        // TODO: Implement cache clearing
         Task {
-            await updateStorageStats()
+            do {
+                let localStorage = LocalStorageService.shared
+                try localStorage.clearAllCache()
+                await updateStorageStats()
+            } catch {
+                // Handle error silently in debug view
+            }
         }
     }
 }
@@ -226,5 +233,5 @@ extension FileManager {
         return totalSize
     }
 }
-
+#endif
 

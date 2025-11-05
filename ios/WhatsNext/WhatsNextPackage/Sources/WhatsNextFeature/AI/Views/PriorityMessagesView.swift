@@ -24,10 +24,12 @@ struct PriorityMessagesView: View {
             }
         }
         .refreshable {
-            await viewModel.loadAllInsights()
+            // Refresh triggers new analysis
+            await viewModel.analyzeSelectedForPriority()
         }
         .task {
-            await viewModel.loadAllInsights()
+            // Analyze for priority messages (this also loads from database)
+            await viewModel.analyzeSelectedForPriority()
         }
     }
 

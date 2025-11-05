@@ -139,19 +139,16 @@ final class AIViewModel: ObservableObject {
             return
         }
 
-        guard let userId = currentUserId else {
-            errorMessage = "User ID required"
-            return
-        }
-
         isAnalyzing = true
         defer { isAnalyzing = false }
         errorMessage = nil
 
         for id in effectiveConversations {
             do {
-                let (rsvps, _) = try await service.trackRSVPs(conversationId: id, userId: userId)
-                rsvpsByConversation[id] = rsvps
+                // Call Edge Function to extract and create new RSVPs (conversation-scoped)
+                let (_, _) = try await service.trackRSVPs(conversationId: id)
+                // Then load ALL RSVPs (both pending AND responded) from database
+                await refreshRSVPs(conversationId: id)
             } catch {
                 errorMessage = error.localizedDescription
             }
@@ -571,17 +568,24 @@ final class AIViewModel: ObservableObject {
     // MARK: - RSVP Responses
 
     /// Respond to an RSVP (yes/no/maybe)
+    /// Records which user responded by setting user_id
     func respondToRSVP(_ rsvp: RSVPTracking, status: RSVPTracking.RSVPStatus) async {
+        guard let userId = currentUserId else {
+            errorMessage = "User ID required to respond"
+            return
+        }
+
         do {
             let supabase = SupabaseClientService.shared
             let now = ISO8601DateFormatter().string(from: Date())
 
-            // Update RSVP status and set responded_at timestamp
+            // Update RSVP status, set responded_at timestamp, and record who responded
             try await supabase.database
                 .from("rsvp_tracking")
                 .update([
                     "status": status.rawValue,
-                    "responded_at": now
+                    "responded_at": now,
+                    "user_id": userId.uuidString  // Record who responded to the shared RSVP
                 ])
                 .eq("id", value: rsvp.id)
                 .execute()
@@ -635,6 +639,7 @@ final class AIViewModel: ObservableObject {
             let id: String
             let conversation_id: String
             let message_id: String?
+            let user_id: String
             let title: String
             let date: String
             let time: String?
@@ -653,6 +658,7 @@ final class AIViewModel: ObservableObject {
             id: UUID().uuidString,
             conversation_id: rsvp.conversationId.uuidString,
             message_id: rsvp.messageId.uuidString,
+            user_id: userId.uuidString,
             title: rsvp.eventName,
             date: dateString,
             time: nil,
@@ -701,6 +707,7 @@ final class AIViewModel: ObservableObject {
     }
 
     /// Refresh RSVPs for a conversation from database
+    /// RSVPs are now conversation-scoped (shared), not user-scoped
     private func refreshRSVPs(conversationId: UUID) async {
         do {
             let supabase = SupabaseClientService.shared
@@ -708,6 +715,7 @@ final class AIViewModel: ObservableObject {
                 .from("rsvp_tracking")
                 .select()
                 .eq("conversation_id", value: conversationId)
+                // No user_id filter - RSVPs are shared between conversation participants
                 .order("created_at", ascending: false)
                 .execute()
                 .value
@@ -839,7 +847,7 @@ final class AIViewModel: ObservableObject {
         }
     }
 
-    /// Load cached RSVPs from database
+    /// Load cached RSVPs from database (conversation-scoped, shared)
     private func loadCachedRSVPs(for conversationIds: [UUID], userId: UUID) async {
         let supabase = SupabaseClientService.shared
 
@@ -849,7 +857,7 @@ final class AIViewModel: ObservableObject {
                     .from("rsvp_tracking")
                     .select()
                     .eq("conversation_id", value: convId)
-                    .eq("user_id", value: userId)
+                    // No user_id filter - RSVPs are shared between conversation participants
                     .order("created_at", ascending: false)
                     .execute()
                     .value

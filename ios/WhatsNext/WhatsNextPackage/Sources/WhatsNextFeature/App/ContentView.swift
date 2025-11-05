@@ -49,7 +49,7 @@ public struct ContentView: View {
                 do {
                     try await SupabaseClientService.shared.auth.session(from: url)
                 } catch {
-                    print("Failed to handle auth URL: \(error)")
+                    // Auth URL handling failed - user will need to sign in manually
                 }
             }
         }

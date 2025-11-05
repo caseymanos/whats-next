@@ -28,9 +28,9 @@ const RSVPResultSchema = z.object({
 });
 
 // Request schema
+// RSVPs are now conversation-scoped (shared), not user-scoped
 const RequestSchema = z.object({
   conversationId: z.string().uuid(),
-  userId: z.string().uuid(),
   daysBack: z.number().min(1).max(14).optional().default(7),
 });
 
@@ -53,18 +53,10 @@ serve(async (req) => {
 
     // Parse and validate request
     const body = await req.json();
-    const { conversationId, userId, daysBack } = RequestSchema.parse(body);
+    const { conversationId, daysBack } = RequestSchema.parse(body);
 
-    // Ensure authenticated user matches requested userId
-    if (authUserId !== userId) {
-      return new Response(
-        JSON.stringify({ error: 'Cannot track RSVPs for another user' }),
-        { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders() } }
-      );
-    }
-
-    // Verify conversation access
-    const hasAccess = await verifyConversationAccess(supabase, userId, conversationId);
+    // Verify conversation access (use authenticated user)
+    const hasAccess = await verifyConversationAccess(supabase, authUserId, conversationId);
     if (!hasAccess) {
       return new Response(
         JSON.stringify({ error: 'Access denied to conversation' }),
@@ -73,7 +65,7 @@ serve(async (req) => {
     }
 
     // Check rate limit
-    const { allowed, count } = await checkRateLimit(supabase, userId, 'track-rsvps', 30);
+    const { allowed, count } = await checkRateLimit(supabase, authUserId, 'track-rsvps', 30);
     if (!allowed) {
       return new Response(
         JSON.stringify({ error: 'Rate limit exceeded', count }),
@@ -98,11 +90,11 @@ serve(async (req) => {
 
     logRequest(requestId, 'messages_fetched', { count: messages.length });
 
-    // Get user's profile to understand context
+    // Get user's profile to understand context (for AI prompt)
     const { data: userProfile } = await supabase
       .from('users')
       .select('display_name, username')
-      .eq('id', userId)
+      .eq('id', authUserId)
       .single();
 
     const userName = userProfile?.display_name || userProfile?.username || 'User';
@@ -165,19 +157,19 @@ Extract all pending RSVP requests:`,
     const serviceClient = createServiceClient();
 
     if (rsvps.length > 0) {
-      // Check for existing RSVPs
+      // Check for existing RSVPs (conversation-scoped, not user-scoped)
       const { data: existing } = await serviceClient
         .from('rsvp_tracking')
-        .select('message_id, user_id')
-        .eq('user_id', userId)
+        .select('message_id, conversation_id')
+        .eq('conversation_id', conversationId)
         .in('message_id', rsvps.map(r => r.messageId));
 
       const existingKeys = new Set(
-        (existing || []).map((e: any) => `${e.message_id}-${e.user_id}`)
+        (existing || []).map((e: any) => `${e.message_id}-${e.conversation_id}`)
       );
 
       const newRSVPs = rsvps.filter(
-        r => !existingKeys.has(`${r.messageId}-${userId}`)
+        r => !existingKeys.has(`${r.messageId}-${conversationId}`)
       );
 
       if (newRSVPs.length > 0) {
@@ -187,7 +179,7 @@ Extract all pending RSVP requests:`,
             newRSVPs.map(rsvp => ({
               message_id: rsvp.messageId,
               conversation_id: conversationId,
-              user_id: userId,
+              user_id: null, // Shared RSVP - no specific user until someone responds
               event_name: rsvp.eventName,
               requested_by: null, // Will need user mapping in production
               deadline: rsvp.deadline || null,
@@ -206,17 +198,16 @@ Extract all pending RSVP requests:`,
       }
     }
 
-    // Get summary of all pending RSVPs for this user
+    // Get summary of all pending RSVPs for this conversation (shared)
     const { data: pendingRSVPs } = await supabase
       .from('rsvp_tracking')
       .select('*')
       .eq('conversation_id', conversationId)
-      .eq('user_id', userId)
       .eq('status', 'pending')
       .order('deadline', { ascending: true, nullsFirst: false });
 
     // Log usage
-    await logUsage(supabase, userId, 'track-rsvps');
+    await logUsage(supabase, authUserId, 'track-rsvps');
 
     logRequest(requestId, 'complete', { newRSVPs: rsvps.length, totalPending: pendingRSVPs?.length || 0 });
 

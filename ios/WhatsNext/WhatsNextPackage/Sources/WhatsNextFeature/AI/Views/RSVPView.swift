@@ -30,11 +30,12 @@ struct RSVPView: View {
             }
         }
         .refreshable {
-            await viewModel.loadAllInsights()
+            // Refresh triggers new analysis
+            await viewModel.analyzeSelectedForRSVPs()
         }
         .task {
-            // Auto-load insights when view appears
-            await viewModel.loadAllInsights()
+            // First analyze for RSVPs (this also loads from database)
+            await viewModel.analyzeSelectedForRSVPs()
         }
         .alert("Error", isPresented: $showErrorAlert) {
             Button("OK", role: .cancel) {}
