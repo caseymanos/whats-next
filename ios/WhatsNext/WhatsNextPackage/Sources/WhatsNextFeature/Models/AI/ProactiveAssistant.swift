@@ -3,14 +3,41 @@ import Foundation
 /// Response from proactive-assistant Edge Function (multi-step agent)
 public struct ProactiveAssistantResponse: Codable {
     public let message: String
-    public let insights: ProactiveInsights
-    public let toolsUsed: [ToolExecution]
+    public let insights: ProactiveInsights?
+    public let toolsUsed: [ToolExecution]?
 
     public struct ProactiveInsights: Codable {
-        public let upcomingEvents: [CalendarEvent]
-        public let pendingRSVPs: [RSVPTracking]
-        public let upcomingDeadlines: [Deadline]
-        public let schedulingConflicts: [SchedulingConflict]
+        public let upcomingEvents: [CalendarEvent]?
+        public let pendingRSVPs: [RSVPTracking]?
+        public let upcomingDeadlines: [Deadline]?
+        public let schedulingConflicts: [SchedulingConflict]?
+
+        enum CodingKeys: String, CodingKey {
+            case upcomingEvents = "upcomingEvents"
+            case pendingRSVPs = "pendingRSVPs"
+            case upcomingDeadlines = "upcomingDeadlines"
+            case schedulingConflicts = "schedulingConflicts"
+        }
+
+        public init(
+            upcomingEvents: [CalendarEvent]? = nil,
+            pendingRSVPs: [RSVPTracking]? = nil,
+            upcomingDeadlines: [Deadline]? = nil,
+            schedulingConflicts: [SchedulingConflict]? = nil
+        ) {
+            self.upcomingEvents = upcomingEvents
+            self.pendingRSVPs = pendingRSVPs
+            self.upcomingDeadlines = upcomingDeadlines
+            self.schedulingConflicts = schedulingConflicts
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            upcomingEvents = try container.decodeIfPresent([CalendarEvent].self, forKey: .upcomingEvents)
+            pendingRSVPs = try container.decodeIfPresent([RSVPTracking].self, forKey: .pendingRSVPs)
+            upcomingDeadlines = try container.decodeIfPresent([Deadline].self, forKey: .upcomingDeadlines)
+            schedulingConflicts = try container.decodeIfPresent([SchedulingConflict].self, forKey: .schedulingConflicts)
+        }
     }
 
     public struct SchedulingConflict: Codable, Hashable {

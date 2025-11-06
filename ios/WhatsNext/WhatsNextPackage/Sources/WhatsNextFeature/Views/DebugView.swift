@@ -205,7 +205,7 @@ struct DebugView: View {
         Task {
             do {
                 let localStorage = LocalStorageService.shared
-                try localStorage.clearAllCache()
+                try localStorage.clearAll()
                 await updateStorageStats()
             } catch {
                 // Handle error silently in debug view

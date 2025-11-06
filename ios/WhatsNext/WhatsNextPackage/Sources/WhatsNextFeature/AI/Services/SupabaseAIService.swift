@@ -1,6 +1,9 @@
 import Foundation
 import Supabase
+import OSLog
 #if AI_FEATURES
+
+private let logger = Logger(subsystem: "com.gauntletai.whatsnext", category: "AIService")
 
 struct ExtractCalendarEventsRequest: Encodable {
     let conversationId: String
@@ -200,25 +203,73 @@ final class SupabaseAIService: AIServiceProtocol {
                 .invoke("proactive-assistant", options: .init(body: payload))
 
             return response
+        } catch let error as DecodingError {
+            // Log detailed decoding error information
+            logger.error("⚠️ DECODING ERROR in proactiveAssistant")
+
+            switch error {
+            case .typeMismatch(let type, let context):
+                logger.error("Type mismatch: Expected \(String(describing: type))")
+                logger.error("Coding path: \(context.codingPath.map { $0.stringValue }.joined(separator: " -> "))")
+                logger.error("Debug description: \(context.debugDescription)")
+
+            case .valueNotFound(let type, let context):
+                logger.error("Value not found: \(String(describing: type))")
+                logger.error("Coding path: \(context.codingPath.map { $0.stringValue }.joined(separator: " -> "))")
+                logger.error("Debug description: \(context.debugDescription)")
+
+            case .keyNotFound(let key, let context):
+                logger.error("Key not found: \(key.stringValue)")
+                logger.error("Coding path: \(context.codingPath.map { $0.stringValue }.joined(separator: " -> "))")
+                logger.error("Debug description: \(context.debugDescription)")
+
+            case .dataCorrupted(let context):
+                logger.error("Data corrupted")
+                logger.error("Coding path: \(context.codingPath.map { $0.stringValue }.joined(separator: " -> "))")
+                logger.error("Debug description: \(context.debugDescription)")
+
+            @unknown default:
+                logger.error("Unknown decoding error: \(error.localizedDescription)")
+            }
+
+            // Create user-friendly error message
+            let fieldPath = (error as? DecodingError).flatMap { err -> String? in
+                switch err {
+                case .typeMismatch(_, let context),
+                     .valueNotFound(_, let context),
+                     .keyNotFound(_, let context),
+                     .dataCorrupted(let context):
+                    return context.codingPath.map { $0.stringValue }.joined(separator: ".")
+                @unknown default:
+                    return nil
+                }
+            } ?? "unknown field"
+
+            throw SupabaseAIError.backend("Data format error at '\(fieldPath)': \(error.localizedDescription)")
+
         } catch let error as FunctionsError {
             // Debug logging to see what we're getting
-            print("[SupabaseAIService] proactiveAssistant FunctionsError: \(error)")
+            logger.error("proactiveAssistant FunctionsError: \(error.localizedDescription)")
 
             // Extract data from FunctionsError
             switch error {
             case .httpError(let code, let data):
-                print("[SupabaseAIService] HTTP Error \(code) with \(data.count) bytes")
+                logger.error("HTTP Error \(code) with \(data.count) bytes")
+
+                // Log the raw response for debugging
+                if let rawString = String(data: data, encoding: .utf8) {
+                    logger.error("Raw response: \(rawString)")
+                }
 
                 // Try to decode the JSON error response
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let errorMessage = json["error"] as? String {
-                    print("[SupabaseAIService] Extracted error message: \(errorMessage)")
+                    logger.error("Extracted error message: \(errorMessage)")
                     throw SupabaseAIError.backend(errorMessage)
                 }
 
                 // If JSON parsing failed, try raw string
                 if let errorString = String(data: data, encoding: .utf8) {
-                    print("[SupabaseAIService] Raw error response: \(errorString)")
                     throw SupabaseAIError.backend(errorString)
                 }
 
@@ -233,7 +284,7 @@ final class SupabaseAIService: AIServiceProtocol {
             }
         } catch {
             // Handle non-FunctionsError cases
-            print("[SupabaseAIService] Non-FunctionsError: \(error)")
+            logger.error("Non-FunctionsError: \(error.localizedDescription)")
             throw SupabaseAIError.backend(error.localizedDescription)
         }
     }
