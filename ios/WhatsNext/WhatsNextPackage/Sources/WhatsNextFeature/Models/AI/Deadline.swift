@@ -119,6 +119,86 @@ public struct Deadline: Codable, Identifiable, Hashable {
     public var isSynced: Bool {
         appleReminderId != nil
     }
+
+    // Custom decoder to handle deadline as string or timestamp
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(UUID.self, forKey: .id)
+        messageId = try container.decodeIfPresent(UUID.self, forKey: .messageId)
+        conversationId = try container.decode(UUID.self, forKey: .conversationId)
+        userId = try container.decode(UUID.self, forKey: .userId)
+        task = try container.decode(String.self, forKey: .task)
+        category = try container.decode(DeadlineCategory.self, forKey: .category)
+        priority = try container.decode(DeadlinePriority.self, forKey: .priority)
+        details = try container.decodeIfPresent(String.self, forKey: .details)
+        status = try container.decode(DeadlineStatus.self, forKey: .status)
+        appleReminderId = try container.decodeIfPresent(String.self, forKey: .appleReminderId)
+        syncStatus = try container.decodeIfPresent(String.self, forKey: .syncStatus)
+        syncError = try container.decodeIfPresent(String.self, forKey: .syncError)
+
+        // Decode lastSyncAttempt as Date or string
+        if let lastSyncDate = try? container.decodeIfPresent(Date.self, forKey: .lastSyncAttempt) {
+            lastSyncAttempt = lastSyncDate
+        } else if let lastSyncString = try? container.decodeIfPresent(String.self, forKey: .lastSyncAttempt) {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            lastSyncAttempt = formatter.date(from: lastSyncString)
+        } else {
+            lastSyncAttempt = nil
+        }
+
+        // Try to decode deadline as Date first, then as ISO8601 string
+        if let deadlineDate = try? container.decode(Date.self, forKey: .deadline) {
+            deadline = deadlineDate
+        } else if let deadlineString = try? container.decode(String.self, forKey: .deadline) {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+            if let date = formatter.date(from: deadlineString) {
+                deadline = date
+            } else {
+                // Try without fractional seconds
+                formatter.formatOptions = [.withInternetDateTime]
+                if let date = formatter.date(from: deadlineString) {
+                    deadline = date
+                } else {
+                    throw DecodingError.dataCorruptedError(
+                        forKey: .deadline,
+                        in: container,
+                        debugDescription: "Unable to parse deadline date from string: \(deadlineString)"
+                    )
+                }
+            }
+        } else {
+            throw DecodingError.keyNotFound(CodingKeys.deadline, DecodingError.Context(
+                codingPath: container.codingPath,
+                debugDescription: "Deadline field not found or invalid type"
+            ))
+        }
+
+        // Try to decode createdAt similarly
+        if let createdAtDate = try? container.decode(Date.self, forKey: .createdAt) {
+            createdAt = createdAtDate
+        } else if let createdAtString = try? container.decode(String.self, forKey: .createdAt) {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            createdAt = formatter.date(from: createdAtString) ?? Date()
+        } else {
+            createdAt = Date()
+        }
+
+        // Decode completedAt similarly
+        if let completedAtDate = try? container.decodeIfPresent(Date.self, forKey: .completedAt) {
+            completedAt = completedAtDate
+        } else if let completedAtString = try? container.decodeIfPresent(String.self, forKey: .completedAt) {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            completedAt = formatter.date(from: completedAtString)
+        } else {
+            completedAt = nil
+        }
+    }
 }
 
 /// Response from extract-deadlines Edge Function

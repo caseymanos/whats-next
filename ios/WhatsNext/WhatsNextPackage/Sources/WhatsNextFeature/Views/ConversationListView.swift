@@ -466,6 +466,14 @@ struct ProfileView: View {
                     }
                 }
 
+                Section("Developer") {
+                    NavigationLink {
+                        DebugView()
+                    } label: {
+                        Label("Debug Settings", systemImage: "hammer.fill")
+                    }
+                }
+
                 Section {
                     Button(role: .destructive) {
                         Task {

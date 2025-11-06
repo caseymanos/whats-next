@@ -87,64 +87,64 @@ struct ProactiveAssistantView: View {
                 summaryCard(response.message)
 
                 // Upcoming Events
-                if !response.insights.upcomingEvents.isEmpty {
+                if let events = response.insights?.upcomingEvents, !events.isEmpty {
                     insightSection(
                         title: "Upcoming Events",
                         icon: "calendar",
                         color: .blue,
-                        count: response.insights.upcomingEvents.count
+                        count: events.count
                     ) {
-                        ForEach(response.insights.upcomingEvents) { event in
+                        ForEach(events) { event in
                             eventCard(event)
                         }
                     }
                 }
 
                 // Pending RSVPs
-                if !response.insights.pendingRSVPs.isEmpty {
+                if let rsvps = response.insights?.pendingRSVPs, !rsvps.isEmpty {
                     insightSection(
                         title: "Pending RSVPs",
                         icon: "envelope.badge",
                         color: .orange,
-                        count: response.insights.pendingRSVPs.count
+                        count: rsvps.count
                     ) {
-                        ForEach(response.insights.pendingRSVPs) { rsvp in
+                        ForEach(rsvps) { rsvp in
                             rsvpCard(rsvp)
                         }
                     }
                 }
 
                 // Upcoming Deadlines
-                if !response.insights.upcomingDeadlines.isEmpty {
+                if let deadlines = response.insights?.upcomingDeadlines, !deadlines.isEmpty {
                     insightSection(
                         title: "Upcoming Deadlines",
                         icon: "clock.badge",
                         color: .red,
-                        count: response.insights.upcomingDeadlines.count
+                        count: deadlines.count
                     ) {
-                        ForEach(response.insights.upcomingDeadlines) { deadline in
+                        ForEach(deadlines) { deadline in
                             deadlineCard(deadline)
                         }
                     }
                 }
 
                 // Scheduling Conflicts
-                if !response.insights.schedulingConflicts.isEmpty {
+                if let conflicts = response.insights?.schedulingConflicts, !conflicts.isEmpty {
                     insightSection(
                         title: "Scheduling Conflicts",
                         icon: "exclamationmark.triangle",
                         color: .red,
-                        count: response.insights.schedulingConflicts.count
+                        count: conflicts.count
                     ) {
-                        ForEach(response.insights.schedulingConflicts, id: \.self) { conflict in
+                        ForEach(conflicts, id: \.self) { conflict in
                             conflictCard(conflict)
                         }
                     }
                 }
 
                 // Tools Used
-                if !response.toolsUsed.isEmpty {
-                    toolsSection(response.toolsUsed)
+                if let tools = response.toolsUsed, !tools.isEmpty {
+                    toolsSection(tools)
                 }
             }
             .padding()

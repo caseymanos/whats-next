@@ -163,6 +163,7 @@ Today's date: ${new Date().toISOString().split('T')[0]}`,
       const eventsToInsert = insights.events.map(event => ({
         conversation_id: conversationId,
         message_id: messageId,
+        user_id: senderId,
         title: event.title,
         date: event.date,
         time: event.time || null,

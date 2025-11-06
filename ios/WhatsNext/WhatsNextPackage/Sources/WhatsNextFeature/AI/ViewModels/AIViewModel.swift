@@ -139,6 +139,11 @@ final class AIViewModel: ObservableObject {
             return
         }
 
+        guard let userId = currentUserId else {
+            errorMessage = "User ID required"
+            return
+        }
+
         isAnalyzing = true
         defer { isAnalyzing = false }
         errorMessage = nil
@@ -146,7 +151,7 @@ final class AIViewModel: ObservableObject {
         for id in effectiveConversations {
             do {
                 // Call Edge Function to extract and create new RSVPs (conversation-scoped)
-                let (_, _) = try await service.trackRSVPs(conversationId: id)
+                let (_, _) = try await service.trackRSVPs(conversationId: id, userId: userId)
                 // Then load ALL RSVPs (both pending AND responded) from database
                 await refreshRSVPs(conversationId: id)
             } catch {
